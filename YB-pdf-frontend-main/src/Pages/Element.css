@@ -1,0 +1,17 @@
+.element {
+  position: relative;
+  background: linear-gradient(to right, #c34e42, #5e5a56); /* Keep the background gradient */padding: 10px;
+  overflow: hidden;
+}
+
+.element::before, 
+.element::after {
+  content: '';
+  position: absolute;
+  border: 1px solid #C1C1C1; /* Lighter and thinner border */width: calc(100% + 5px); /* Slightly smaller increase to reduce the visual thickness */height: calc(100% + 5px); /* Slightly smaller increase to reduce the visual thickness */top: -2.5px; /* Adjusted to match the new width and height */left: -2.5px; /* Adjusted to match the new width and height */pointer-events: none;
+}
+
+.element::after {
+  width: calc(100% + 10px); /* Slightly smaller increase */height: calc(100% + 10px); /* Slightly smaller increase */top: -5px; /* Adjusted to match the new width and height */left: -5px; /* Adjusted to match the new width and height */border-color: #C1C1C1; /* Updated to a lighter grey */
+}
+  
