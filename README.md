@@ -175,7 +175,3 @@ python merge_yearbooks.py
 
 ---
 
-## 👥 Authors & Credits
-- **Aryan Badkul** — [@Abdiitb](https://github.com/Abdiitb)
-- **Khushi Yadav** — [@KhushiYadav18](https://github.com/KhushiYadav18)
-- Portability & pipeline integrations optimized by **Antigravity**.
