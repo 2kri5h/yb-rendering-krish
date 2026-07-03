@@ -91,13 +91,20 @@ def fetch_data_from_csv(request):
 
 # Function to download image
 def download_image(url):
-    response = requests.get(url)
-    if response.status_code == 200:
-        return Image.open(BytesIO(response.content))
+    if not url:
+        return None
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            return Image.open(BytesIO(response.content))
+    except Exception as e:
+        print(f"Error downloading image from {url}: {e}")
     return None
 
 # Function to compare images using Mean Squared Error (MSE)
 def compare_images(image1, image2, similarity_threshold=99.5):
+    if not image1 or not image2:
+        return False
     if image1.size != image2.size:
         return False
 
@@ -114,14 +121,29 @@ def compare_images(image1, image2, similarity_threshold=99.5):
 
 # Function to resize image
 def resize_image(image, max_size=100):
-    if max(image.size) > max_size:
-        aspect_ratio = float(image.size[0]) / float(image.size[1])
-        new_width = max_size if aspect_ratio >= 1 else int(
-            max_size * aspect_ratio)
-        new_height = max_size if aspect_ratio <= 1 else int(
-            max_size / aspect_ratio)
-        image = image.resize((new_width, new_height), Image.LANCZOS)
+    if not image:
+        return None
+    try:
+        if max(image.size) > max_size:
+            aspect_ratio = float(image.size[0]) / float(image.size[1])
+            new_width = max_size if aspect_ratio >= 1 else int(
+                max_size * aspect_ratio)
+            new_height = max_size if aspect_ratio <= 1 else int(
+                max_size / aspect_ratio)
+            image = image.resize((new_width, new_height), Image.LANCZOS)
+    except Exception as e:
+        print(f"Error resizing image: {e}")
+        return None
     return image
+
+_cached_images = {}
+
+def get_cached_comparison_image(url):
+    if url not in _cached_images or _cached_images[url] is None:
+        img = download_image(url)
+        if img:
+            _cached_images[url] = resize_image(img)
+    return _cached_images.get(url)
 
 def make_absolute_url(url):
     if not url:
@@ -137,7 +159,7 @@ def process_post(post):
     print(post['id'])
     if not post['is_anonymous']:
         comparisonImageUrl = "https://i.pinimg.com/736x/c0/74/9b/c0749b7cc401421662ae901ec8f9f660.jpg"
-        comparisonImage = resize_image(download_image(comparisonImageUrl))
+        comparisonImage = get_cached_comparison_image(comparisonImageUrl)
 
         profile_img_src = post.get("written_by_profile", {}).get("profile_image")
         image_url = make_absolute_url(profile_img_src) if profile_img_src else comparisonImageUrl
@@ -157,12 +179,12 @@ def process_post(post):
 
     return post
 
-def process_profiles(profile):
+def process_profiles(profile, request=None):
     comparisonImageUrlProfile = "https://i.pinimg.com/736x/c0/74/9b/c0749b7cc401421662ae901ec8f9f660.jpg"
-    comparisonImageProfile = resize_image(download_image(comparisonImageUrlProfile))
+    comparisonImageProfile = get_cached_comparison_image(comparisonImageUrlProfile)
     
     comparisonImageUrl = "https://yearbook.sarc-iitb.org/api/Impression_Images/user_6/img4.png"
-    comparisonImage = resize_image(download_image(comparisonImageUrl))
+    comparisonImage = get_cached_comparison_image(comparisonImageUrl)
 
     image_url1 = make_absolute_url(profile.get("img1"))
     image_url2 = make_absolute_url(profile.get("img2"))
@@ -182,7 +204,10 @@ def process_profiles(profile):
     if res1:
         image1 = resize_image(res1)
         if compare_images(comparisonImage, image1):
-            profile['img1'] = 'http://localhost:8000/media/desktop-wallpaper-iit-bombay.jpg'
+            if request:
+                profile['img1'] = request.build_absolute_uri('/media/desktop-wallpaper-iit-bombay.jpg')
+            else:
+                profile['img1'] = 'http://localhost:8001/media/desktop-wallpaper-iit-bombay.jpg'
         else:
             profile['img1'] = image_url1
     else:
@@ -276,7 +301,7 @@ def fetch_profile_by_id(request, user_id):
             )
 
         profile = resp.json()
-        processed = process_profiles(profile)
+        processed = process_profiles(profile, request)
         return JsonResponse(processed)
 
     except requests.Timeout:
@@ -297,7 +322,7 @@ def profile(request):
 
             # Check if profiles exist and are in the correct format
             if profiles and isinstance(profiles, list):
-                new_profiles = [process_profiles(profile) for profile in profiles]
+                new_profiles = [process_profiles(profile, request) for profile in profiles]
                 json_response = json.dumps(new_profiles)
 
                 # Log or print the response for debugging

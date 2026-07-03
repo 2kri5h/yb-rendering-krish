@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const LOCAL_API = "http://localhost:8000/api";
+const LOCAL_API = "http://localhost:8001/api";
 const YEARBOOK_ORIGIN = "https://yearbook.sarc-iitb.org";
 
 const TOKEN =

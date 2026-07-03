@@ -12,11 +12,11 @@ import { stylesProfile } from "./styles/profileStyle.js";
 import { stylesSigningOff } from "./styles/signingOffStyle.js";
 import stylesCensor from "./styles/stylesCensor";
 import stylesFilm from "./styles/stylesFilm";
-import profileBG from "./assets/profileBG.png";
-import profileHeader from "./assets/header.png";
+import profileBG from "./assets/profileBG.jpg";
+import profileHeader from "./assets/header_optimized.png";
 import film_frame from "./assets/frame.png";
 import censorBg from './assets/censorCerticateBG.png';
-import background from "./assets/background.png";
+import background from "./assets/background.jpg";
 import writeForYourself from "./assets/write.jpg";
 
 // import front1 from "/assets/front/1.png";
@@ -70,7 +70,7 @@ import GentiumBold from "./Fonts/Gentium_Book_Plus/GentiumBookPlus-Bold.ttf";
 import GentiumItalic from "./Fonts/Gentium_Book_Plus/GentiumBookPlus-Italic.ttf";
 import GentiumBoldItalic from "./Fonts/Gentium_Book_Plus/GentiumBookPlus-BoldItalic.ttf";
 import daughter_of_fortune from "./Fonts/daughter_of_fortune/Daughter of Fortune.ttf";
-import frontPageBG    from "./assets/frontPageBG.png";
+import frontPageBG    from "./assets/frontPageBG.jpg";
 import ChalkChalkFont from "./Fonts/chalkchalk/Chalkchalk-Regular.ttf";
 import ChalkEizFont   from "./Fonts/chalkiez/Chalkiez-Regular.ttf";
 import stylesFrontPage from "./styles/stylesFrontPage";
@@ -143,7 +143,8 @@ Font.register({ family: "FranklinGothicMedium", src: FranklinGothicMedium });
 
 Font.registerEmojiSource({
   format: "png",
-  url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/",
+  url: "https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/72x72/",
+  withVariationSelectors: true,
 });
 
 Font.register({ family: "LobsterFont", src: lobster });

@@ -93,8 +93,7 @@ const YearbookDashboard = ({ data }) => {
                 </tbody>
             </table>
 
-            {/* Custom styles */}
-            <style jsx>{`
+            <style dangerouslySetInnerHTML={{__html: `
         body {
           background-color: pink;
           color: black;
@@ -127,7 +126,7 @@ const YearbookDashboard = ({ data }) => {
         .optionChosen {
           width: 200px;
         }
-      `}</style>
+            `}} />
         </div>
     );
 };

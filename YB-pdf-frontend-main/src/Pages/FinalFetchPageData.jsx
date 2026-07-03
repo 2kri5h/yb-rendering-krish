@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const YEARBOOK_ORIGIN = "https://yearbook.sarc-iitb.org";
-const LOCAL_API = "http://localhost:8000/api";
+const LOCAL_API = "http://localhost:8001/api";
 const YEARBOOK_TIMEOUT_MS = 45000;
 const LOCAL_BACKEND_TIMEOUT_MS = 10000;
 const FEED_PROCESS_TIMEOUT_MS = 90000;

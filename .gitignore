@@ -16,3 +16,10 @@ venv/
 node_modules/
 dist/
 build/
+
+# Generated PDFs and temporary files
+Personalised_pages_rendered_pdf/
+final_merged_yearbooks/
+pers_snapshots_id/
+*.pdf
+.tmp_fix_renderpostwriter.js

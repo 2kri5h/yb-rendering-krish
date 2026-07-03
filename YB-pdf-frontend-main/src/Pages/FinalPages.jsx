@@ -46,8 +46,8 @@ import GentiumBoldItalic from "./Fonts/Gentium_Book_Plus/GentiumBookPlus-BoldIta
 import FranklinGothicMedium from "./Fonts/Franklin Gothic Medium Regular/Franklin Gothic Medium Regular.ttf";
 import stylesFilm from "./styles/stylesFilm";
 import { stylesSigningOff } from "./styles/signingOffStyle.js";
-import profileBG from "./assets/profileBG.png";
-import profileHeader from "./assets/header.png";
+import profileBG from "./assets/profileBG.jpg";
+import profileHeader from "./assets/header_optimized.png";
 import film_frame from "./assets/frame.png";
 import { computePostChunks } from "./postChunkUtils";
 import HeadlinesBold from "./Fonts/headlines/Headlines-Bold.otf";
@@ -99,7 +99,8 @@ Font.register({ family: "Monotype Corsiva", src: monotypeCorsiva });
 
 Font.registerEmojiSource({
   format: "png",
-  url: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/",
+  url: "https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/72x72/",
+  withVariationSelectors: true,
 });
 
 Font.register({ family: "LobsterFont", src: lobster });
@@ -496,7 +497,7 @@ const FinalPages = ({
               <Image src={`${window.location.origin}/assets/back/1.png`} style={stylesSigningOff.backgroundImg} />
             </View>
           </Page> */}
-           <Page size="A4" style={stylesSigningOff.page}>
+          <Page size="A4" style={stylesSigningOff.page}>
             <View style={stylesSigningOff.section}>
               <Image src="/assets/back/LAST-5.png" style={stylesSigningOff.backgroundImg} />
             </View>
@@ -508,23 +509,11 @@ const FinalPages = ({
             </View>
           </Page>
 
-          {/* <Page size="A4" style={stylesSigningOff.page}>
-            <View style={stylesSigningOff.section}>
-              <Image src="/assets/back/LAST-3.png" style={stylesSigningOff.backgroundImg} />
-            </View>
-          </Page> */}
-
           <Page size="A4" style={stylesSigningOff.page}>
             <View style={stylesSigningOff.section}>
               <Image src="/assets/back/LAST-1.png" style={stylesSigningOff.backgroundImg} />
             </View>
           </Page>
-
-           {/* <Page size="A4" style={stylesSigningOff.page}>
-            <View style={stylesSigningOff.section}>
-              <Image src="/assets/back/LAST-1 (1).png" style={stylesSigningOff.backgroundImg} />
-            </View>
-          </Page>  */}
 
           <Page size="A4" style={stylesSigningOff.page}>
             <View style={stylesSigningOff.section}>

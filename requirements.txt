@@ -1,0 +1,22 @@
+# Python Dependencies for Yearbook Rendering & Merging Pipeline
+
+# PDF Manipulation
+pypdf>=4.0.0
+
+# Google Drive Integration
+google-api-python-client>=2.0.0
+google-auth-httplib2>=0.1.0
+google-auth-oauthlib>=1.0.0
+google-auth>=2.0.0
+
+# HTTP Requests & APIs
+requests>=2.31.0
+
+# Image & Data Processing
+numpy>=1.25.0
+pillow>=10.0.0
+
+# Django Backend Dependencies
+django>=4.2.3
+django-cors-headers>=4.2.0
+djangorestframework>=3.14.0
