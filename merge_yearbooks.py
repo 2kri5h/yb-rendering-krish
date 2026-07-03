@@ -122,6 +122,68 @@ def download_gdrive_folder(folder_id, dest_dir, service_account_path):
         return False
 
 
+# Google Drive Single File Download Helper (on-demand)
+def download_file_from_gdrive(folder_id, file_name_prefix, dest_dir, service_account_path):
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaIoBaseDownload
+    except ImportError:
+        return None
+
+    if not os.path.exists(service_account_path):
+        return None
+
+    os.makedirs(dest_dir, exist_ok=True)
+    # Strip extension for query
+    query_prefix = file_name_prefix.replace(".pdf", "").replace(".PDF", "").strip()
+    safe_prefix = query_prefix.replace("'", "\\'")
+    
+    try:
+        SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+        creds = service_account.Credentials.from_service_account_file(service_account_path, scopes=SCOPES)
+        service = build('drive', 'v3', credentials=creds)
+
+        query = f"'{folder_id}' in parents and mimeType = 'application/pdf' and name contains '{safe_prefix}' and trashed = false"
+        results = service.files().list(q=query, fields="files(id, name)").execute()
+        files = results.get('files', [])
+
+        if not files:
+            # Fallback: check all files in folder if contains query did not match
+            query_all = f"'{folder_id}' in parents and mimeType = 'application/pdf' and trashed = false"
+            results = service.files().list(q=query_all, fields="files(id, name)").execute()
+            files_all = results.get('files', [])
+            
+            prefix_lower = query_prefix.lower()
+            for file_info in files_all:
+                name_lower = file_info['name'].lower().replace(".pdf", "").strip()
+                if name_lower.startswith(prefix_lower) or prefix_lower in name_lower:
+                    files = [file_info]
+                    break
+
+        if files:
+            file_id = files[0]['id']
+            file_name = files[0]['name']
+            dest_path = os.path.join(dest_dir, file_name)
+            
+            # Skip downloading if already exists locally
+            if os.path.exists(dest_path):
+                return dest_path
+                
+            Logger.info(f"Downloading from Google Drive: '{file_name}'...")
+            request = service.files().get_media(fileId=file_id)
+            fh = io.FileIO(dest_path, 'wb')
+            downloader = MediaIoBaseDownload(fh, request)
+            done = False
+            while not done:
+                status, done = downloader.next_chunk()
+            Logger.success(f"Successfully downloaded '{file_name}' from Google Drive.")
+            return dest_path
+    except Exception as e:
+        Logger.warn(f"Google Drive search/download failed for prefix '{file_name_prefix}': {e}")
+    return None
+
+
 # Fuzzy header matching helper
 def find_column(headers: list, keywords: list) -> str:
     for header in headers:
@@ -249,8 +311,8 @@ def main():
     
     # GDrive Sync Arguments
     parser.add_argument("--sync-gdrive", action="store_true", help="Sync folders from Google Drive before merging")
-    parser.add_argument("--gdrive-pers-id", help="Google Drive Folder ID for personalized profile PDFs")
-    parser.add_argument("--gdrive-snap-id", help="Google Drive Folder ID for snapshot PDFs")
+    parser.add_argument("--gdrive-pers-id", default="1AUZRUdlq-IsC9soL9KxL9E88SBkXKbba", help="Google Drive Folder ID for personalized profile PDFs")
+    parser.add_argument("--gdrive-snap-id", default="1Ma599G8jg-bnQXrIoslqQXz3wnrs7JmQ", help="Google Drive Folder ID for snapshot PDFs")
     parser.add_argument("--service-account", default="YB-pdf-backend-main/physicalYbImage/service_account/yb-pdf-rendering-229aa55bb9b3.json", help="Path to service account credentials JSON")
 
     args = parser.parse_args()
@@ -351,6 +413,20 @@ def main():
 
         # Look for personalized PDF
         pers_pdf_path = os.path.join(args.personalized_dir, pers_filename)
+        
+        # Check Google Drive first if configured
+        if args.gdrive_pers_id and os.path.exists(args.service_account):
+            gdrive_path = download_file_from_gdrive(
+                args.gdrive_pers_id,
+                pers_filename,
+                args.personalized_dir,
+                args.service_account
+            )
+            if gdrive_path and os.path.exists(gdrive_path):
+                pers_pdf_path = gdrive_path
+                pers_filename = os.path.basename(pers_pdf_path)
+
+        # Fallback/verification locally if not downloaded or GDrive check failed
         if not os.path.exists(pers_pdf_path):
             # Try appending .pdf extension if missing
             if not pers_pdf_path.endswith(".pdf"):
@@ -385,13 +461,28 @@ def main():
         # Look for Snapshot PDF if requested
         snapshot_path = None
         if include_snap:
-            if snap_filename:
-                snapshot_path = os.path.join(args.snapshots_dir, snap_filename)
-                if not os.path.exists(snapshot_path) and not snapshot_path.endswith(".pdf"):
-                    snapshot_path += ".pdf"
-            else:
-                # Fallback to {profile_id}.pdf
-                snapshot_path = os.path.join(args.snapshots_dir, f"{profile_id}.pdf")
+            snap_lookup = snap_filename if snap_filename else f"{profile_id}.pdf"
+            
+            # Check Google Drive first if configured
+            if args.gdrive_snap_id and os.path.exists(args.service_account):
+                gdrive_path = download_file_from_gdrive(
+                    args.gdrive_snap_id,
+                    snap_lookup,
+                    args.snapshots_dir,
+                    args.service_account
+                )
+                if gdrive_path and os.path.exists(gdrive_path):
+                    snapshot_path = gdrive_path
+
+            # Fallback to local search if GDrive check failed
+            if not snapshot_path or not os.path.exists(snapshot_path):
+                if snap_filename:
+                    snapshot_path = os.path.join(args.snapshots_dir, snap_filename)
+                    if not os.path.exists(snapshot_path) and not snapshot_path.endswith(".pdf"):
+                        snapshot_path += ".pdf"
+                else:
+                    # Fallback to {profile_id}.pdf
+                    snapshot_path = os.path.join(args.snapshots_dir, f"{profile_id}.pdf")
 
             if not snapshot_path or not os.path.exists(snapshot_path):
                 Logger.warn(f"Snapshot PDF requested but not found at: {snapshot_path}. Proceeding without snapshot.")

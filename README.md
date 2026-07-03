@@ -132,15 +132,30 @@ pip install -r requirements.txt
 ```
 Execute the merge script:
 ```bash
-# Run with default options
+Execute the merge script:
+```bash
+# Run with default options (Automatically searches GDrive first, then falls back to local)
 python merge_yearbooks.py
 ```
+
+#### 📌 Hybrid Google Drive & Local Search
+The script uses an intelligent **Hybrid Lookup Strategy**:
+1. For each student, the script checks if the file exists in Google Drive. If found, it automatically downloads it on-demand to the local folder (skipping download if the local copy is already present).
+2. If it is not found on Google Drive, or if the service account key is missing, the script falls back to searching in the local folder (`Personalised_pages_rendered_pdf/` or `pers_snapshots_id/`).
+
+---
+
+## 📂 Google Drive Folder Reference Links
+Your pipeline is pre-configured with the following default Google Drive folder IDs:
+- **Rendered Personalised PDFs Folder**: [Link to GDrive](https://drive.google.com/drive/folders/1AUZRUdlq-IsC9soL9KxL9E88SBkXKbba?usp=drive_link) (ID: `1AUZRUdlq-IsC9soL9KxL9E88SBkXKbba`)
+- **Snapshots PDFs Folder**: [Link to GDrive](https://drive.google.com/drive/folders/1Ma599G8jg-bnQXrIoslqQXz3wnrs7JmQ?usp=drive_link) (ID: `1Ma599G8jg-bnQXrIoslqQXz3wnrs7JmQ`)
+- **Final Merged PDFs Folder** (for verification/upload): [Link to GDrive](https://drive.google.com/drive/folders/19TTZja9AxT9O6yFkOCQ69beyiwc_PIBN?usp=drive_link) (ID: `19TTZja9AxT9O6yFkOCQ69beyiwc_PIBN`)
 
 ---
 
 ## 🛠️ CLI Merging Commands & Custom Parameters
 
-`merge_yearbooks.py` supports advanced configuration flags to automate downloads from Google Drive or define custom directories:
+`merge_yearbooks.py` supports advanced configuration flags to override directories or use custom Google Drive folders:
 
 | Flag | Default Value | Description |
 |---|---|---|
@@ -149,19 +164,21 @@ python merge_yearbooks.py
 | `--common-pdf` | `commented_pages_preview.pdf` | Path to the common/shared yearbook page PDF |
 | `--snapshots-dir` | `pers_snapshots_id` | Directory containing student snapshot PDFs |
 | `--output-dir` | `final_merged_yearbooks` | Target folder where final merged PDFs are saved |
-| `--sync-gdrive` | *Disabled by default* | Add this flag to sync/download PDFs directly from Google Drive |
-| `--gdrive-pers-id` | `None` | Google Drive folder ID for personalized PDFs |
-| `--gdrive-snap-id` | `None` | Google Drive folder ID for snapshot PDFs |
-| `--service-account` | *Path to local json credentials* | Path to Google Service Account JSON key |
+| `--sync-gdrive` | *Disabled by default* | Add this flag to sync/download **all** PDFs from GDrive at the start |
+| `--gdrive-pers-id` | `1AUZRUdlq-IsC9soL9KxL9E88SBkXKbba` | Google Drive folder ID for personalized PDFs |
+| `--gdrive-snap-id` | `1Ma599G8jg-bnQXrIoslqQXz3wnrs7JmQ` | Google Drive folder ID for snapshot PDFs |
+| `--service-account` | `YB-pdf-backend-main/physicalYbImage/service_account/yb-pdf-rendering-229aa55bb9b3.json` | Path to Google Service Account JSON key |
 
 ### Examples:
-- **Change output folder and CSV location:**
+- **Run without GDrive integration (local-only):**
+  If you delete or rename the service account credentials JSON, the script will automatically bypass Google Drive checks and fall back directly to your local folders.
+- **Merge using custom Google Drive folders (e.g. for teammates' own testing):**
   ```bash
-  python merge_yearbooks.py --csv custom_list.csv --output-dir merged_outputs
+  python merge_yearbooks.py --gdrive-pers-id <NEW_FOLDER_ID> --gdrive-snap-id <NEW_FOLDER_ID>
   ```
-- **Sync files directly from Google Drive folders before merging:**
+- **Sync/download all files from Google Drive folders before merging:**
   ```bash
-  python merge_yearbooks.py --sync-gdrive --gdrive-pers-id <FOLDER_ID_1> --gdrive-snap-id <FOLDER_ID_2>
+  python merge_yearbooks.py --sync-gdrive
   ```
 
 ---
