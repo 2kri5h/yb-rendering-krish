@@ -167,11 +167,17 @@ Your pipeline is pre-configured with the following default Google Drive folder I
 | `--sync-gdrive` | *Disabled by default* | Add this flag to sync/download **all** PDFs from GDrive at the start |
 | `--gdrive-pers-id` | `1AUZRUdlq-IsC9soL9KxL9E88SBkXKbba` | Google Drive folder ID for personalized PDFs |
 | `--gdrive-snap-id` | `1Ma599G8jg-bnQXrIoslqQXz3wnrs7JmQ` | Google Drive folder ID for snapshot PDFs |
+| `--upload-gdrive` | *Disabled by default* | Add this flag to automatically upload merged PDFs to GDrive folder |
+| `--gdrive-output-id` | `19TTZja9AxT9O6yFkOCQ69beyiwc_PIBN` | Google Drive folder ID where final merged PDFs are uploaded |
 | `--service-account` | `YB-pdf-backend-main/physicalYbImage/service_account/yb-pdf-rendering-229aa55bb9b3.json` | Path to Google Service Account JSON key |
 
 ### Examples:
 - **Run without GDrive integration (local-only):**
   If you delete or rename the service account credentials JSON, the script will automatically bypass Google Drive checks and fall back directly to your local folders.
+- **Run the complete merge and upload to Google Drive:**
+  ```bash
+  python merge_yearbooks.py --upload-gdrive
+  ```
 - **Merge using custom Google Drive folders (e.g. for teammates' own testing):**
   ```bash
   python merge_yearbooks.py --gdrive-pers-id <NEW_FOLDER_ID> --gdrive-snap-id <NEW_FOLDER_ID>

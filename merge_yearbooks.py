@@ -184,6 +184,38 @@ def download_file_from_gdrive(folder_id, file_name_prefix, dest_dir, service_acc
     return None
 
 
+# Google Drive File Upload Helper
+def upload_file_to_gdrive(file_path, folder_id, service_account_path):
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaFileUpload
+    except ImportError:
+        Logger.error("Google Client libraries not available for upload. Please run pip install google-api-python-client")
+        return False
+
+    if not os.path.exists(service_account_path):
+        Logger.error(f"Service account JSON not found for upload at: {service_account_path}")
+        return False
+
+    try:
+        Logger.info(f"Uploading '{os.path.basename(file_path)}' to Google Drive folder '{folder_id}'...")
+        SCOPES = ['https://www.googleapis.com/auth/drive']
+        creds = service_account.Credentials.from_service_account_file(service_account_path, scopes=SCOPES)
+        service = build('drive', 'v3', credentials=creds)
+
+        file_metadata = {
+            'name': os.path.basename(file_path),
+            'parents': [folder_id]
+        }
+        media = MediaFileUpload(file_path, mimetype='application/pdf')
+        file_drive = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+        return True
+    except Exception as e:
+        Logger.error(f"Google Drive upload failed: {e}")
+        return False
+
+
 # Fuzzy header matching helper
 def find_column(headers: list, keywords: list) -> str:
     for header in headers:
@@ -313,6 +345,8 @@ def main():
     parser.add_argument("--sync-gdrive", action="store_true", help="Sync folders from Google Drive before merging")
     parser.add_argument("--gdrive-pers-id", default="1AUZRUdlq-IsC9soL9KxL9E88SBkXKbba", help="Google Drive Folder ID for personalized profile PDFs")
     parser.add_argument("--gdrive-snap-id", default="1Ma599G8jg-bnQXrIoslqQXz3wnrs7JmQ", help="Google Drive Folder ID for snapshot PDFs")
+    parser.add_argument("--upload-gdrive", action="store_true", help="Upload merged PDFs directly to Google Drive")
+    parser.add_argument("--gdrive-output-id", default="19TTZja9AxT9O6yFkOCQ69beyiwc_PIBN", help="Google Drive Folder ID for final merged PDFs")
     parser.add_argument("--service-account", default="YB-pdf-backend-main/physicalYbImage/service_account/yb-pdf-rendering-229aa55bb9b3.json", help="Path to service account credentials JSON")
 
     args = parser.parse_args()
@@ -504,6 +538,16 @@ def main():
         if success:
             Logger.success(f"Successfully merged: {output_filename}")
             success_count += 1
+            if args.upload_gdrive:
+                upload_success = upload_file_to_gdrive(
+                    output_pdf_path,
+                    args.gdrive_output_id,
+                    args.service_account
+                )
+                if upload_success:
+                    Logger.success(f"Uploaded to GDrive: {output_filename}")
+                else:
+                    Logger.error(f"Failed to upload to GDrive: {output_filename}")
         else:
             Logger.error(f"Failed merging: {pers_filename}")
             fail_count += 1
