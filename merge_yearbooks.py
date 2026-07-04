@@ -37,6 +37,25 @@ except ImportError:
         print("Or if you are on a system with permission restrictions: python3 -m pip install --target /tmp/temp_packages pypdf")
         sys.exit(1)
 
+# Pre-emptively adjust time for Google Auth to bypass host clock drift
+try:
+    import google.auth._helpers
+    import datetime
+    original_utcnow = google.auth._helpers.utcnow
+    google.auth._helpers.utcnow = lambda: original_utcnow() - datetime.timedelta(seconds=300)
+except Exception:
+    pass
+
+# Override PyPDF limit constraints for large high-resolution PDF files
+try:
+    import pypdf.filters
+    import pypdf.generic._data_structures
+    pypdf.filters.MAX_DECLARED_STREAM_LENGTH = 2000 * 1024 * 1024  # 2 GB
+    pypdf.filters.MAX_ARRAY_BASED_STREAM_OUTPUT_LENGTH = 2000 * 1024 * 1024  # 2 GB
+    pypdf.generic._data_structures.CONTENT_STREAM_ARRAY_MAX_LENGTH = 1000000
+except Exception:
+    pass
+
 # Console Coloring
 class Logger:
     CYAN = '\033[96m'
@@ -399,6 +418,11 @@ def main():
         col_profile_id = find_column(headers, ["profile id", "id", "profile_id"])
         col_snap_flag = find_column(headers, ["personalised snapshots there", "snapshots there", "snapshot there", "snapshot flag", "personalised snapshots", "snapshots"])
         col_snap_file = find_column(headers, ["if yes then name", "snapshot file name", "snapshot filename", "snap file"])
+        col_pdf_merged = find_column(headers, ["pdf merged?", "pdf merged", "merged"])
+
+        if not col_pdf_merged:
+            col_pdf_merged = "pdf merged?"
+            headers.append(col_pdf_merged)
 
         # Display resolved columns
         Logger.info("Resolved columns from CSV:")
@@ -406,6 +430,7 @@ def main():
         Logger.info(f"  - Profile ID column: '{col_profile_id}'")
         Logger.info(f"  - Snapshot flag column: '{col_snap_flag}'")
         Logger.info(f"  - Snapshot filename column: '{col_snap_file}'")
+        Logger.info(f"  - PDF Merged status column: '{col_pdf_merged}'")
 
         # Validation
         if not col_pers_file:
@@ -416,9 +441,12 @@ def main():
             col_profile_id = headers[1] if len(headers) > 1 else headers[0]
 
         # Read row data
-        dict_reader = csv.DictReader(f, fieldnames=headers)
+        dict_reader = csv.DictReader(f, fieldnames=headers, restval="no")
         for row in dict_reader:
+            if not row.get(col_pdf_merged):
+                row[col_pdf_merged] = "no"
             rows.append(row)
+
 
     total_profiles = len(rows)
     Logger.info(f"Loaded {total_profiles} profiles from CSV.")
@@ -427,10 +455,18 @@ def main():
     fail_count = 0
     warnings_count = 0
 
+    failed_merges = []
+
     # Process merges
     for idx, row in enumerate(rows):
         profile_id = row.get(col_profile_id, "").strip()
         pers_filename = row.get(col_pers_file, "").strip()
+
+        # Check if already merged
+        merged_status = row.get(col_pdf_merged, "").strip().lower()
+        if merged_status == "yes":
+            Logger.info(f"[{idx+1}/{total_profiles}] Profile ID={profile_id} ({pers_filename}) already merged. Skipping.")
+            continue
         
         # Determine snapshot inclusion
         snap_flag = row.get(col_snap_flag, "").strip().lower() if col_snap_flag else "no"
@@ -442,14 +478,19 @@ def main():
 
         if not pers_filename:
             Logger.error("Empty personalized filename! Skipping.")
+            failed_merges.append({
+                'name': '',
+                'profile id': profile_id,
+                'reason': 'Empty personalized filename in CSV'
+            })
             fail_count += 1
             continue
 
         # Look for personalized PDF
         pers_pdf_path = os.path.join(args.personalized_dir, pers_filename)
         
-        # Check Google Drive first if configured
-        if args.gdrive_pers_id and os.path.exists(args.service_account):
+        # Check Google Drive first if configured (Disabled to only analyze repo folder)
+        if False and args.gdrive_pers_id and os.path.exists(args.service_account):
             gdrive_path = download_file_from_gdrive(
                 args.gdrive_pers_id,
                 pers_filename,
@@ -461,7 +502,10 @@ def main():
                 pers_filename = os.path.basename(pers_pdf_path)
 
         # Fallback/verification locally if not downloaded or GDrive check failed
-        if not os.path.exists(pers_pdf_path):
+        resolved_pers_pdf = None
+        if os.path.exists(pers_pdf_path):
+            resolved_pers_pdf = pers_pdf_path
+        else:
             # Try appending .pdf extension if missing
             if not pers_pdf_path.endswith(".pdf"):
                 pers_pdf_path_with_pdf = pers_pdf_path + ".pdf"
@@ -469,36 +513,46 @@ def main():
                 pers_pdf_path_with_pdf = pers_pdf_path
                 
             if os.path.exists(pers_pdf_path_with_pdf):
-                pers_pdf_path = pers_pdf_path_with_pdf
-                pers_filename = os.path.basename(pers_pdf_path)
+                resolved_pers_pdf = pers_pdf_path_with_pdf
+                pers_filename = os.path.basename(resolved_pers_pdf)
             else:
                 # Try finding a file in the directory that starts with the given name prefix
-                prefix = pers_filename.lower().replace(".pdf", "").strip()
+                prefix = " ".join(pers_filename.lower().replace(".pdf", "").strip().split())
                 matched_file = None
                 try:
                     for f in os.listdir(args.personalized_dir):
-                        if f.lower().startswith(prefix) and f.lower().endswith(".pdf"):
-                            matched_file = f
-                            break
+                        if f.lower().endswith(".pdf"):
+                            normalized_f = " ".join(f.lower().replace(".pdf", "").strip().split())
+                            if normalized_f.startswith(prefix) or prefix in normalized_f:
+                                matched_file = f
+                                break
                 except Exception as e:
                     pass
                 
                 if matched_file:
                     pers_filename = matched_file
-                    pers_pdf_path = os.path.join(args.personalized_dir, pers_filename)
+                    resolved_pers_pdf = os.path.join(args.personalized_dir, pers_filename)
                     Logger.info(f"Fuzzy matched '{prefix}' to file: '{pers_filename}'")
-                else:
-                    Logger.error(f"Personalized PDF file not found: {pers_pdf_path}. Skipping.")
-                    fail_count += 1
-                    continue
+
+        if not resolved_pers_pdf:
+            Logger.error(f"Personalized PDF file not found: {pers_filename}. Skipping.")
+            failed_merges.append({
+                'name': row.get(col_pers_file, "").strip(),
+                'profile id': profile_id,
+                'reason': 'Personalized PDF not found'
+            })
+            fail_count += 1
+            continue
+
+        pers_pdf_path = resolved_pers_pdf
 
         # Look for Snapshot PDF if requested
         snapshot_path = None
         if include_snap:
             snap_lookup = snap_filename if snap_filename else f"{profile_id}.pdf"
             
-            # Check Google Drive first if configured
-            if args.gdrive_snap_id and os.path.exists(args.service_account):
+            # Check Google Drive first if configured (Disabled to only analyze repo folder)
+            if False and args.gdrive_snap_id and os.path.exists(args.service_account):
                 gdrive_path = download_file_from_gdrive(
                     args.gdrive_snap_id,
                     snap_lookup,
@@ -511,17 +565,41 @@ def main():
             # Fallback to local search if GDrive check failed
             if not snapshot_path or not os.path.exists(snapshot_path):
                 if snap_filename:
-                    snapshot_path = os.path.join(args.snapshots_dir, snap_filename)
-                    if not os.path.exists(snapshot_path) and not snapshot_path.endswith(".pdf"):
-                        snapshot_path += ".pdf"
+                    local_path = os.path.join(args.snapshots_dir, snap_filename)
+                    if os.path.exists(local_path):
+                        snapshot_path = local_path
+                    elif os.path.exists(local_path + ".pdf"):
+                        snapshot_path = local_path + ".pdf"
                 else:
                     # Fallback to {profile_id}.pdf
-                    snapshot_path = os.path.join(args.snapshots_dir, f"{profile_id}.pdf")
+                    local_path = os.path.join(args.snapshots_dir, f"{profile_id}.pdf")
+                    if os.path.exists(local_path):
+                        snapshot_path = local_path
+                    else:
+                        # Try fuzzy matching in snapshots directory for the ID
+                        prefix = f"{profile_id}".strip()
+                        matched_snap = None
+                        try:
+                            for f in os.listdir(args.snapshots_dir):
+                                if prefix in f.lower() and f.lower().endswith(".pdf"):
+                                    matched_snap = f
+                                    break
+                        except Exception as e:
+                            pass
+                        if matched_snap:
+                            snapshot_path = os.path.join(args.snapshots_dir, matched_snap)
+                            Logger.info(f"Matched ID '{profile_id}' to snapshot: '{matched_snap}'")
 
             if not snapshot_path or not os.path.exists(snapshot_path):
-                Logger.warn(f"Snapshot PDF requested but not found at: {snapshot_path}. Proceeding without snapshot.")
-                warnings_count += 1
-                snapshot_path = None
+                Logger.error(f"Snapshot PDF requested but not found for ID: {profile_id}. Skipping.")
+                failed_merges.append({
+                    'name': row.get(col_pers_file, "").strip(),
+                    'profile id': profile_id,
+                    'reason': f"Snapshot PDF not found (expected {snap_lookup})"
+                })
+                fail_count += 1
+                continue
+
 
         # Build output path
         output_filename = pers_filename
@@ -538,6 +616,7 @@ def main():
         if success:
             Logger.success(f"Successfully merged: {output_filename}")
             success_count += 1
+            row[col_pdf_merged] = "yes"
             if args.upload_gdrive:
                 upload_success = upload_file_to_gdrive(
                     output_pdf_path,
@@ -550,7 +629,36 @@ def main():
                     Logger.error(f"Failed to upload to GDrive: {output_filename}")
         else:
             Logger.error(f"Failed merging: {pers_filename}")
+            failed_merges.append({
+                'name': row.get(col_pers_file, "").strip(),
+                'profile id': profile_id,
+                'reason': 'PDF merging failure'
+            })
             fail_count += 1
+
+    # Write failed merges to CSV if any
+    failed_csv_path = "failed_merges.csv"
+    if failed_merges:
+        try:
+            with open(failed_csv_path, mode='w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=['name', 'profile id', 'reason'])
+                writer.writeheader()
+                for entry in failed_merges:
+                    writer.writerow(entry)
+            Logger.info(f"Failed merges logged to: {failed_csv_path}")
+        except Exception as e:
+            Logger.error(f"Failed to write failed merges CSV: {e}")
+
+    # Write updated merge list back to CSV
+    try:
+        with open(args.csv, mode='w', encoding='utf-8', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader()
+            for r in rows:
+                writer.writerow(r)
+        Logger.info(f"Updated merge list saved to: {args.csv}")
+    except Exception as e:
+        Logger.error(f"Failed to write updated merge list: {e}")
 
     # Print Summary Report
     Logger.title("Execution Summary Report")
